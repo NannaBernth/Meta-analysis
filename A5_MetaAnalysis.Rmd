@@ -1,0 +1,294 @@
+---
+title: "Assignment 5 - Meta-analysis of pitch in schizophrenia"
+author: "Riccardo Fusaroli"
+date: "3/7/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+locpath= "C:/Users/nanna/OneDrive - Aarhus universitet/3. Semester/Experimental Methods 3/Metaanalysis/Assignment5_MetaAnalysis"
+
+setwd(locpath)
+
+
+library(pacman)
+p_load(tidyverse, metafor, lme4, lmerTest, plyr)
+
+```
+
+# Building on the shoulders of giants: meta-analysis
+
+## Questions to be answered
+
+1. What is the current evidence for distinctive patterns of pitch mean and pitch sd in schizophrenia? 
+
+Report how many papers report quantitative estimates, your method to analyze them, the estimated effect size of the difference (mean effect size and standard error for pitch mean, same for pitch sd) and forest plots representing it. 
+
+2. Do the results match your own analysis from Assignment 3? If you add your results to the meta-analysis, do the estimated effect sizes change? 
+
+Report the new estimates and the new forest plots.
+
+3. Assess the quality of the literature: report and comment on heterogeneity of the studies (tau, I2), on publication bias (funnel plot), and on influential studies.
+
+## Tips on the process to follow:
+
+- Download the data on all published articles analyzing pitch in schizophrenia (on gitlab)
+```{r + Load data}
+
+data = read.csv("SR_SCHIZO.csv")
+
+```
+
+
+- Look through the dataset to find out which columns to use, and if there is any additional information written as comments (real world data is always messy!).
+
+    * Hint: Make sure you read the comments in the columns: `pitch_f0_variability`, `frequency`, `Title`,  `ACOUST_ANA_DESCR`, `DESCRIPTION`, and `COMMENTS`
+    
+```{r + Excluding studies}
+
+#We exluce all studies in which only sample size is reported. 
+
+data_clean <- data[!with(data,is.na(PITCH_F0_SZ_SD) & is.na(PITCH_F0SD_SZ_SD)),]
+
+#data_clean$ACOUST_ANA_DESCR
+
+```
+
+
+- Following the procedure in the slides calculate effect size and standard error of the effect size per each study. N.B. we focus on pitch mean and pitch standard deviation.
+
+ . first try using lmer (to connect to what you know of mixed effects models)
+ . then use rma() (to get some juicy additional statistics)
+
+- Build a forest plot of the results (forest(model))
+
+
+```{r + Cohens D}
+
+#Cohens D for mean
+pitch_mean = escalc('SMD', n1i=SAMPLE_SIZE_SZ, n2i=SAMPLE_SIZE_HC, m1i=PITCH_F0_SZ_M, m2i=PITCH_F0_HC_M, sd1i=PITCH_F0_SZ_SD, sd2i=PITCH_F0_HC_SD, data = data_clean)
+
+pitch_var = escalc('SMD', n1i=SAMPLE_SIZE_SZ, n2i=SAMPLE_SIZE_HC, m1i=PITCH_F0SD_SZ_M, m2i=PITCH_F0SD_HC_M, sd1i=PITCH_F0SD_SZ_SD, sd2i=PITCH_F0SD_HC_SD, data = data_clean)
+
+```
+
+
+```{r + Models + rma}
+
+# Mixed effects model 
+model_mean <- lmer(yi ~ 1 + (1 | StudyID), weights = 1/vi, data= pitch_mean, control=lmerControl(check.nobs.vs.nlev="ignore", check.nobs.vs.nRE="ignore"))
+summary(model_mean)
+
+model_var <- lmer(yi ~ 1 + (1 | StudyID), weights = 1/vi, data= pitch_var, control=lmerControl(check.nobs.vs.nlev="ignore", check.nobs.vs.nRE="ignore"))
+summary(model_var)
+
+
+# Meta-analysis optimisation
+model_mean_1 <- rma(yi, vi, data = pitch_mean, slab=StudyID)
+model_mean_1
+
+forest(model_mean_1)
+
+model_var_1 <- rma(yi, vi, data = pitch_var, slab=StudyID)
+model_var_1
+forest(model_var_1)
+
+
+```
+
+
+```{r + Infuencial points}
+
+inf_mean <- influence(model_mean_1)
+print(inf_mean)
+plot(inf_mean)
+
+inf_var <- influence(model_var_1)
+print(inf_var)
+plot(inf_var)
+
+
+
+```
+
+
+```{r + Funnel plots}
+
+funnel_mean <- funnel(model_mean_1, main = "Random-Effects Model", xlab = "Standardized Mean Difference")
+
+funnel_var = funnel(model_var_1, main = "Random-Effects Model", xlab = "Standardized Mean Difference")
+
+
+regtest(model_mean_1)
+ranktest(model_mean_1)
+
+
+regtest(model_var_1)
+ranktest(model_var_1)
+
+```
+
+ 
+- Go back to Assignment 3, add your own study to the data table, and re-run meta-analysis. Do the results change?
+
+      Our study is 3 in 1
+      Model: pitch ~ diagnosis (1| Study)
+
+      Use the predict funtion to get the best estimates
+      Since we have study as random effect 
+
+- Now look at the output of rma() and check tau and I2
+
+##Adding Assignment 3
+
+```{r + Read data from assignment 3 + getting means from models}
+
+data_ass3 <- read.csv("data_with_demo.csv")
+
+
+
+#Caculating the number in each group 
+
+data_ass3 %>% 
+  filter(diagnosis == "Control" & study == 1) %>%
+  nrow()
+#[1] 352
+
+data_ass3 %>% 
+  filter(diagnosis == "Schizophrenia" & study == 1) %>%
+  nrow()
+#[1] 335
+
+data_ass3 %>% 
+  filter(diagnosis == "Control" & study == 2) %>%
+  nrow()
+#[1] 184
+
+data_ass3 %>% 
+  filter(diagnosis == "Schizophrenia" & study == 2) %>%
+  nrow()
+#[1] 182
+
+data_ass3 %>% 
+  filter(diagnosis == "Control" & study == 4) %>%
+  nrow()
+#[1] 128
+
+data_ass3 %>% 
+  filter(diagnosis == "Schizophrenia" & study == 4) %>%
+  nrow()
+#[1] 158
+```
+
+
+```{r + getting means from models from ass3}
+#Making models 
+
+model_ass3_mean <- lmer(mean ~ diagnosis + (1|trial) + (1|study) + (1|ID), data_ass3)
+model_ass3_sd <- lmer(sd ~ diagnosis + (1|study) + (1|trial) +(1|ID), data_ass3)
+
+diagnosis <- c("Control", "Control", "Control", "Schizophrenia", "Schizophrenia", "Schizophrenia")
+study <- c(1:3, 1:3)
+diag_stud <- as.data.frame(diagnosis)
+diag_stud$study <- study
+
+#Get optimal "mean" by predicting data for a matrix for 3 studies
+predict(model_ass3_mean, re.form = ~ (1| study),  newdata = diag_stud, allow.new.levels = T)
+predict(model_ass3_sd, re.form = ~ (1| study),  newdata = diag_stud, allow.new.levels = T)
+
+
+#Adding values to a dataframe with similar columns
+
+listoflists <- list(StudyID = c(49, 50, 51), ArticleID = 47, SAMPLE_SIZE_SZ = c(335, 182, 158),
+SAMPLE_SIZE_HC = c(352, 184, 128), PITCH_F0_HC_M = c(142.4939, 123.8641, 137.0162), PITCH_F0_HC_SD = c(24.72409, 27.32127, 25.47117), PITCH_F0_SZ_M = c(156.2813, 137.6516, 150.8036), PITCH_F0_SZ_SD = c(24.72409, 27.32127, 25.47117))
+
+ass3 <- as.data.frame(listoflists)
+
+ass3$ACOUST_ANA_DESCR = NA
+ass3$DESCRIPTION = NA
+ass3$COMMENTS = NA
+ass3$frequency = NA
+ass3$Title = NA
+ass3$Authors = NA
+ass3$Article = NA
+ass3$Year_publication = NA
+ass3$PITCH_F0SD_HC_M = NA
+ass3$PITCH_F0SD_HC_SD = NA
+ass3$PITCH_F0SD_SZ_M = NA
+ass3$PITCH_F0SD_SZ_SD = NA
+ass3$pitch_f0_variability = NA 
+
+# as.factor(ass3$ACOUST_ANA_DESCR)
+# as.factor(ass3$DESCRIPTION)
+# as.factor(ass3$COMMENTS)
+# as.factor(ass3$frequency)
+# as.factor(ass3$Title)
+# as.factor(ass3$Authors)
+# as.factor(ass3$Article)
+
+data_all <- rbind(data_clean, ass3)
+
+```
+
+
+```{r + Cohens D and models and rma}
+#Cohens D for mean
+pitch_mean_all = escalc('SMD', n1i=SAMPLE_SIZE_SZ, n2i=SAMPLE_SIZE_HC, m1i=PITCH_F0_SZ_M, m2i=PITCH_F0_HC_M, sd1i=PITCH_F0_SZ_SD, sd2i=PITCH_F0_HC_SD, data = data_all)
+
+# pitch_var_all = escalc('SMD', n1i=SAMPLE_SIZE_SZ, n2i=SAMPLE_SIZE_HC, m1i=PITCH_F0SD_SZ_M, m2i=PITCH_F0SD_HC_M, sd1i=PITCH_F0SD_SZ_SD, sd2i=PITCH_F0SD_HC_SD, data = data_all)
+
+
+# Mixed effects model 
+model_mean_all <- lmer(yi ~ 1 + (1 | StudyID), weights = 1/vi, data= pitch_mean_all, control=lmerControl(check.nobs.vs.nlev="ignore", check.nobs.vs.nRE="ignore"))
+
+summary(model_mean_all)
+
+# model_var_all <- lmer(yi ~ 1 + (1 | StudyID), weights = 1/vi, data= pitch_var_all, control=lmerControl(check.nobs.vs.nlev="ignore", check.nobs.vs.nRE="ignore"))
+# 
+# summary(model_var_all)
+
+# Meta-analysis optimisation
+model_mean_2 <- rma(yi, vi, data = pitch_mean_all, slab=StudyID)
+model_mean_2
+forest(model_mean_2)
+
+model_var_2 <- rma(yi, vi, data = pitch_var_all, slab=StudyID)
+model_var_2
+forest(model_var_2)
+```
+
+
+```{r + Infuencial points for data_all}
+
+inf_mean_all <- influence(model_mean_2)
+print(inf_mean_all)
+plot(inf_mean_all)
+
+# inf_var_all <- influence(model_var_2)
+# print(inf_var_all)
+# plot(inf_var_all)
+
+
+
+```
+
+
+```{r + funnel plots for data_all}
+
+funnel_mean_all <- funnel(model_mean_2, main = "Random-Effects Model", xlab = "Standardized Mean Difference")
+
+# funnel_var_all = funnel(model_var_2, main = "Random-Effects Model", xlab = "Standardized Mean Difference")
+
+
+regtest(model_mean_2)
+ranktest(model_mean_2)
+
+
+# regtest(model_var_2)
+# ranktest(model_var_2)
+
+```
+
+
