@@ -90,10 +90,12 @@ model_mean_1 <- rma(yi, vi, data = pitch_mean, slab=StudyID)
 model_mean_1
 
 forest(model_mean_1)
+confint(model_mean_1)
 
 model_var_1 <- rma(yi, vi, data = pitch_var, slab=StudyID)
 model_var_1
 forest(model_var_1)
+confint(model_var_1)
 
 
 ```
@@ -208,12 +210,12 @@ ass3 <- as.data.frame(listoflists)
 
 ass3$ACOUST_ANA_DESCR = NA
 ass3$DESCRIPTION = NA
-ass3$COMMENTS = NA
+ass3$COMMENTS = "At least we tried"
 ass3$frequency = NA
-ass3$Title = NA
-ass3$Authors = NA
+ass3$Title = "Diagnosis On Basis of Pitch"
+ass3$Authors = "CogSci et al"
 ass3$Article = NA
-ass3$Year_publication = NA
+ass3$Year_publication = "2018"
 ass3$PITCH_F0SD_HC_M = NA
 ass3$PITCH_F0SD_HC_SD = NA
 ass3$PITCH_F0SD_SZ_M = NA
@@ -234,6 +236,7 @@ data_all <- rbind(data_clean, ass3)
 
 
 ```{r + Cohens D and models and rma}
+
 #Cohens D for mean
 pitch_mean_all = escalc('SMD', n1i=SAMPLE_SIZE_SZ, n2i=SAMPLE_SIZE_HC, m1i=PITCH_F0_SZ_M, m2i=PITCH_F0_HC_M, sd1i=PITCH_F0_SZ_SD, sd2i=PITCH_F0_HC_SD, data = data_all)
 
@@ -246,17 +249,19 @@ model_mean_all <- lmer(yi ~ 1 + (1 | StudyID), weights = 1/vi, data= pitch_mean_
 summary(model_mean_all)
 
 # model_var_all <- lmer(yi ~ 1 + (1 | StudyID), weights = 1/vi, data= pitch_var_all, control=lmerControl(check.nobs.vs.nlev="ignore", check.nobs.vs.nRE="ignore"))
-# 
+
 # summary(model_var_all)
 
 # Meta-analysis optimisation
 model_mean_2 <- rma(yi, vi, data = pitch_mean_all, slab=StudyID)
 model_mean_2
 forest(model_mean_2)
+confint(model_mean_2)
 
-model_var_2 <- rma(yi, vi, data = pitch_var_all, slab=StudyID)
-model_var_2
-forest(model_var_2)
+# 
+# model_var_2 <- rma(yi, vi, data = pitch_var_all, slab=StudyID)
+# model_var_2
+# forest(model_var_2)
 ```
 
 
@@ -281,14 +286,31 @@ funnel_mean_all <- funnel(model_mean_2, main = "Random-Effects Model", xlab = "S
 
 # funnel_var_all = funnel(model_var_2, main = "Random-Effects Model", xlab = "Standardized Mean Difference")
 
-
 regtest(model_mean_2)
 ranktest(model_mean_2)
-
 
 # regtest(model_var_2)
 # ranktest(model_var_2)
 
 ```
+
+
+
+```{r + Excluding 15 and plotting}
+
+#Plots with exclusion of study 15
+test_var <- pitch_var_all[!pitch_var_all$StudyID == 15,]
+
+model_var_3 <- rma(yi, vi, data = test_var, slab=StudyID)
+model_var_3
+
+forest(model_var_3)
+funnel_var_all_v2 = funnel(model_var_3, main = "Random-Effects Model", xlab = "Standardized Mean Difference")
+
+```
+
+
+
+
 
 
